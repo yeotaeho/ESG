@@ -1,0 +1,150 @@
+services:
+  # Eureka 서비스 제거됨 (SimpleDiscoveryClient 사용)
+  # config 서비스도 필요없다면 제거 가능 (현재는 유지)
+
+
+  gateway:
+    build:
+      context: .
+      dockerfile: api/discovery/Dockerfile
+    container_name: gateway-server
+    ports:
+      - "8080:8080"
+    networks:
+      - api-network
+    depends_on:
+      - user
+      - common
+    restart: unless-stopped
+    environment:
+      - SPRING_PROFILES_ACTIVE=default
+      - USER_SERVICE_HOST=user-service
+      - USER_SERVICE_PORT=8083
+      - COMMON_SERVICE_HOST=common-service
+      - COMMON_SERVICE_PORT=8082
+      - UPSTASH_REDIS_HOST=${UPSTASH_REDIS_HOST}
+      - UPSTASH_REDIS_PORT=${UPSTASH_REDIS_PORT}
+      - UPSTASH_REDIS_TOKEN=${UPSTASH_REDIS_TOKEN}
+
+  common:
+    build:
+      context: .
+      dockerfile: service/common/Dockerfile
+    container_name: common-service
+    ports:
+      - "8082:8082"
+    networks:
+      - api-network
+    restart: unless-stopped
+    environment:
+      - SPRING_PROFILES_ACTIVE=default
+      - NEON_DATABASE_URL=${NEON_DATABASE_URL}
+      - NEON_DATABASE_USER=${NEON_DATABASE_USER}
+      - NEON_DATABASE_PASSWORD=${NEON_DATABASE_PASSWORD}
+
+  user:
+    build:
+      context: .
+      dockerfile: service/user/Dockerfile
+    container_name: user-service
+    ports:
+      - "8083:8083"
+    networks:
+      - api-network
+    depends_on:
+      - common
+    restart: unless-stopped
+    environment:
+      - SPRING_PROFILES_ACTIVE=default
+      - NEON_DATABASE_URL=${NEON_DATABASE_URL}
+      - NEON_DATABASE_USER=${NEON_DATABASE_USER}
+      - NEON_DATABASE_PASSWORD=${NEON_DATABASE_PASSWORD}
+
+  esg:
+    build:
+      context: .
+      dockerfile: service/esg/Dockerfile
+    container_name: esg-service
+    ports:
+      - "8084:8084"
+    networks:
+      - api-network
+    depends_on:
+      - common
+    restart: unless-stopped
+    environment:
+      - SPRING_PROFILES_ACTIVE=default
+      - NEON_DATABASE_URL=${NEON_DATABASE_URL}
+      - NEON_DATABASE_USER=${NEON_DATABASE_USER}
+      - NEON_DATABASE_PASSWORD=${NEON_DATABASE_PASSWORD}
+
+  # postgres 서비스 제거됨 (Neon 데이터베이스 사용)
+  # postgres:
+  #   image: postgres:16-alpine
+  #   container_name: postgres-db
+  #   ports:
+  #     - "5432:5432"
+  #   networks:
+  #     - api-network
+  #   environment:
+  #     - POSTGRES_USER=postgres
+  #     - POSTGRES_PASSWORD=postgres
+  #     - POSTGRES_DB=api_db
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #   restart: unless-stopped
+
+  # redis 서비스 제거됨 (Upstash Redis 사용)
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: redis-cache
+  #   ports:
+  #     - "6379:6379"
+  #   networks:
+  #     - api-network
+  #   volumes:
+  #     - redis-data:/data
+  #   command: redis-server --appendonly yes
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: [ "CMD", "redis-cli", "ping" ]
+  #     interval: 10s
+  #     timeout: 3s
+  #     retries: 5
+
+  # AI 서비스들들
+
+  chatbotservice:
+    build:
+      context: ./ai/service/chatbotservice
+      dockerfile: Dockerfile
+    container_name: chatbotservice
+    ports:
+      - "9001:9001"
+    networks:
+      - api-network
+    restart: unless-stopped
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - UPSTASH_REDIS_HOST=${UPSTASH_REDIS_HOST}
+      - UPSTASH_REDIS_PORT=${UPSTASH_REDIS_PORT}
+      - UPSTASH_REDIS_TOKEN=${UPSTASH_REDIS_TOKEN}
+
+  clawlerservice:
+    build:
+      context: ./ai/service/clawlerservice
+      dockerfile: Dockerfile
+    container_name: clawlerservice
+    ports:
+      - "9002:9002"
+    networks:
+      - api-network
+    restart: unless-stopped
+    environment:
+      - UPSTASH_REDIS_HOST=${UPSTASH_REDIS_HOST}
+      - UPSTASH_REDIS_PORT=${UPSTASH_REDIS_PORT}
+      - UPSTASH_REDIS_TOKEN=${UPSTASH_REDIS_TOKEN}
+
+networks:
+  api-network:
+    driver: bridge

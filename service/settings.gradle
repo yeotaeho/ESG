@@ -1,0 +1,6 @@
+rootProject.name = 'service'
+
+include 'common'
+include 'user'
+include 'esg'
+
