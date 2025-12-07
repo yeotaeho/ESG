@@ -59,6 +59,15 @@ spring:
             - Path=/api/clawler/**
           filters:
             - StripPrefix=1  # /api 제거 → /clawler/** 전달
+
+        # ML Service 라우팅
+        # 예: /api/ml/** → /ml/** (mlservice 컨테이너로 전달)
+        - id: ml-service
+          uri: lb://ml-service
+          predicates:
+            - Path=/api/ml/**
+          filters:
+            - StripPrefix=1  # /api 제거 → /ml/** 전달
       
       # 글로벌 CORS 설정
       # 주의: allowCredentials: true일 때는 allowedOrigins에 "*"를 사용할 수 없음
@@ -107,6 +116,11 @@ spring:
             clawler-service:
               - uri: http://${CLAWLER_SERVICE_HOST:clawlerservice}:${CLAWLER_SERVICE_PORT:9002}
                 instance-id: clawler-service-1
+
+            # ML Service 인스턴스 정의
+            ml-service:
+              - uri: http://${ML_SERVICE_HOST:mlservice}:${ML_SERVICE_PORT:9003}
+                instance-id: ml-service-1
 
   data:
     redis:

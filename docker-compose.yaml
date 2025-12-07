@@ -145,6 +145,21 @@ services:
       - UPSTASH_REDIS_PORT=${UPSTASH_REDIS_PORT}
       - UPSTASH_REDIS_TOKEN=${UPSTASH_REDIS_TOKEN}
 
+  mlservice:
+    build:
+      context: ./ai/service/mlservice
+      dockerfile: dockerfile
+    container_name: mlservice
+    ports:
+      - "9003:9003"
+    networks:
+      - api-network
+    restart: unless-stopped
+    environment:
+      - UPSTASH_REDIS_HOST=${UPSTASH_REDIS_HOST}
+      - UPSTASH_REDIS_PORT=${UPSTASH_REDIS_PORT}
+      - UPSTASH_REDIS_TOKEN=${UPSTASH_REDIS_TOKEN}
+
 networks:
   api-network:
     driver: bridge
