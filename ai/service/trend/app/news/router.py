@@ -6,6 +6,7 @@ from typing import List, Dict, Optional
 import logging
 
 from .news import NewsAPI
+from .growth_service import GrowthRateService
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,9 @@ async def news_root():
         "status": "running",
         "endpoints": {
             "bitcoin": "/news/bitcoin",
-            "bitcoin_with_params": "/news/bitcoin?page_size=20&sort_by=publishedAt"
+            "bitcoin_with_params": "/news/bitcoin?page_size=20&sort_by=publishedAt",
+            "growth_rate": "/news/growth-rate/{keyword}",
+            "prediction": "/news/prediction/{keyword}"
         }
     }
 
@@ -77,4 +80,56 @@ async def get_bitcoin_news(
     except Exception as e:
         logger.error(f"NewsAPI 요청 실패: {str(e)}")
         raise HTTPException(status_code=500, detail=f"뉴스 가져오기 실패: {str(e)}")
+
+
+@news_router.get("/growth-rate/{keyword}")
+async def get_growth_rate(keyword: str):
+    """
+    특정 키워드에 대한 뉴스 빈도 성장률을 분석합니다.
+    
+    - **keyword**: 분석할 키워드 (예: "bitcoin", "ethereum")
+    
+    Returns:
+        성장률 분석 결과 (4주전 대비 현재주 기사 건수 변화율)
+    """
+    try:
+        growth_service = GrowthRateService()
+        result = growth_service.analyze_growth_rate(keyword=keyword)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"성장률 분석 실패: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"성장률 분석 실패: {str(e)}")
+
+
+@news_router.get("/prediction/{keyword}")
+async def get_prediction(keyword: str):
+    """
+    특정 키워드에 대한 뉴스 빈도 예측 결과를 조회합니다.
+    
+    - **keyword**: 예측할 키워드 (예: "bitcoin", "ethereum")
+    
+    Returns:
+        ML 예측 결과 (현재는 성장률 분석 결과와 동일, 향후 ML 모델 연동 예정)
+    """
+    try:
+        growth_service = GrowthRateService()
+        result = growth_service.analyze_growth_rate(keyword=keyword)
+        
+        # ML 예측 결과 구조 추가 (현재는 기본값, 향후 실제 ML 모델 연동 필요)
+        result["ml_prediction"] = {
+            "next_week_predicted_count": int(result["growth_metrics"]["current_count"] * 1.05),
+            "next_week_predicted_growth_rate": 5.0,
+            "confidence": 0.75,
+            "model_version": "v1.0",
+            "note": "현재는 기본 예측값입니다. 실제 ML 모델 연동 필요."
+        }
+        
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"예측 분석 실패: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"예측 분석 실패: {str(e)}")
 

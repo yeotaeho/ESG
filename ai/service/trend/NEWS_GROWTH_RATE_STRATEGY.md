@@ -211,35 +211,229 @@ NewsAPI에서 받은 뉴스 데이터를 활용하여 **4주전 기사 건수**�
 
 ## 🔄 구현 단계별 전략
 
-### Step 1: 데이터 수집 모듈 확장
-- `NewsAPI` 클래스에 `get_news_by_date_range()` 메서드 추가
-- 주간 단위로 데이터 수집하는 `collect_weekly_articles()` 메서드 추가
+### Step 1: 데이터 수집 모듈 확장 ✅ 완료
+- ✅ `NewsAPI` 클래스에 `get_news_by_date_range()` 메서드 추가
+- ✅ 주간 단위로 데이터 수집하는 `collect_weekly_articles()` 메서드 추가
+- ✅ Pagination 처리 로직 구현 (전략 A 적용)
+- ✅ 데이터 품질 검증 로직 추가
 
-### Step 2: 성장률 계산 모듈
-- `GrowthRateCalculator` 클래스 생성
-- 주간 기사 건수 비교 및 성장률 계산 로직 구현
+### Step 2: 성장률 계산 모듈 ✅ 완료
+- ✅ `GrowthRateCalculator` 클래스 생성 (`growth_rate.py`)
+- ✅ 주간 기사 건수 비교 및 성장률 계산 로직 구현
+- ✅ 시계열 분석 기능 추가 (이동 평균, 추세 방향, 변동성, 모멘텀)
 
-### Step 3: 데이터 저장 및 관리
+### Step 3: 데이터 저장 및 관리 ⏳ 예정
 - Redis 또는 데이터베이스에 주간 데이터 저장
 - 시계열 데이터 누적 관리
 
-### Step 4: Feature Engineering 모듈
-- 과거 데이터를 특징 벡터로 변환
-- 정규화 및 전처리 로직
+### Step 4: Feature Engineering 모듈 ✅ 완료
+- ✅ `FeatureEngineer` 클래스 생성 (`feature_engineering.py`)
+- ✅ 과거 데이터를 특징 벡터로 변환
+- ✅ 기본 특징, 시계열 특징, 파생 특징 추출 기능 구현
 
-### Step 5: 머신러닝 통합
+### Step 5: 머신러닝 통합 ⏳ 예정
 - 기존 ML 서비스와 연동
 - 학습 및 예측 파이프라인 구축
+- 현재는 기본 예측값 제공 (향후 실제 ML 모델 연동 필요)
 
-### Step 6: API 엔드포인트 추가
-- `/news/growth-rate/{keyword}`: 성장률 조회
-- `/news/prediction/{keyword}`: ML 예측 결과 조회
+### Step 6: API 엔드포인트 추가 ✅ 완료
+- ✅ `/news/growth-rate/{keyword}`: 성장률 조회
+- ✅ `/news/prediction/{keyword}`: ML 예측 결과 조회 (기본 구조 완료)
+
+---
+
+## 🛡️ 전략 A: 데이터 수집 로직 보강 (Root Cause Fix)
+
+### 🚨 문제 상황
+
+뉴스 빈도 성장률 계산 시 **-98.49%**와 같은 극단적인 수치가 발생할 수 있습니다. 이는 실제 트렌드 변화가 아니라 **데이터 수집 과정의 오류**를 의미합니다.
+
+**예시:**
+```
+T-1주 (2025-12-01 ~ 12-07): 2935개
+T주 (2025-12-08 ~ 12-14): 34개
+성장률: -98.49%
+```
+
+비트코인과 같은 거대 트렌드의 뉴스 빈도가 일주일 만에 98% 이상 급락하는 것은 현실적으로 불가능합니다.
+
+### 🔍 원인 분석
+
+**가장 유력한 원인: Pagination 실패**
+
+NewsAPI는 한 번에 최대 100개의 기사만 제공합니다. 무료 플랜의 경우:
+- 한 번의 요청으로 최대 100개 기사만 반환
+- `page` 파라미터를 사용하여 다음 페이지 요청 필요
+- **페이지네이션 로직이 없으면 대부분의 기사를 놓치게 됨**
+
+### ✅ 해결 방안: Pagination 처리 구현
+
+#### 1. `get_news_by_date_range()` 메서드 추가
+
+날짜 범위를 지정하여 **모든 페이지를 순회**하며 기사를 수집합니다.
+
+**주요 기능:**
+- `page` 파라미터를 사용한 자동 페이지네이션
+- `totalResults`와 실제 수집 건수 비교 검증
+- 수집 완료율 모니터링 (90% 미만 시 경고)
+- Rate Limit 방지를 위한 요청 간 대기 시간
+
+**사용 예시:**
+```python
+news_api = NewsAPI()
+response = news_api.get_news_by_date_range(
+    keyword="bitcoin",
+    from_date="2025-12-08",
+    to_date="2025-12-14",
+    fetch_all_pages=True  # 모든 페이지 수집
+)
+```
+
+#### 2. `collect_weekly_articles()` 메서드 추가
+
+특정 주(week)의 기사 건수를 수집하는 전용 메서드입니다.
+
+**주요 기능:**
+- 주간 단위 데이터 수집
+- 수집 완료 여부 자동 검증
+- 수집된 페이지 수 추적
+
+**사용 예시:**
+```python
+weekly_data = news_api.collect_weekly_articles(
+    keyword="bitcoin",
+    week_start_date="2025-12-08",
+    week_end_date="2025-12-14"
+)
+
+print(f"기사 건수: {weekly_data['article_count']}개")
+print(f"수집 완료: {weekly_data['collection_complete']}")
+```
+
+#### 3. 기존 메서드 개선
+
+`get_bitcoin_news()` 메서드에 `fetch_all_pages` 옵션을 추가하여 하위 호환성을 유지하면서 Pagination을 지원합니다.
+
+**사용 예시:**
+```python
+# 기존 방식 (첫 페이지만)
+response = news_api.get_bitcoin_news(page_size=20)
+
+# Pagination 처리 (모든 페이지)
+response = news_api.get_bitcoin_news(page_size=100, fetch_all_pages=True)
+```
+
+### 📊 데이터 품질 검증
+
+#### 자동 검증 로직
+
+1. **수집 완료율 검증**
+   - `totalResults` 대비 실제 수집 건수가 90% 미만이면 경고
+   - 데이터 불완전 시 알림 출력
+
+2. **페이지 수 추적**
+   - 수집된 페이지 수를 기록하여 디버깅 용이
+
+3. **로깅 및 모니터링**
+   - 각 주간 수집 시 시작/종료 로그 출력
+   - 수집 건수와 전체 결과 수 비교 정보 제공
+
+### ⚠️ 주의사항
+
+1. **API Rate Limit**
+   - 무료 플랜: 하루 100 요청 제한
+   - 요청 간 최소 대기 시간(`request_delay`) 설정으로 Rate Limit 방지
+   - 대량 수집 시 유료 플랜 고려 필요
+
+2. **성능 최적화**
+   - `page_size=100`으로 설정하여 요청 횟수 최소화
+   - 배치 처리 시 여러 주 데이터를 순차적으로 수집
+
+3. **에러 처리**
+   - 네트워크 오류 시 재시도 로직 고려
+   - API 응답 오류 시 명확한 에러 메시지 제공
+
+### 🎯 구현 상태
+
+✅ **완료된 작업:**
+- `get_news_by_date_range()` 메서드 구현
+- `collect_weekly_articles()` 메서드 구현
+- `get_bitcoin_news()` 메서드에 Pagination 옵션 추가
+- 데이터 품질 검증 로직 추가
+
+---
+
+## 📚 구현 완료 모듈
+
+### 구현된 파일 구조
+
+```
+ai/service/trend/app/news/
+├── __init__.py
+├── news.py                    # NewsAPI 클래스 (Pagination 처리 포함)
+├── growth_rate.py             # GrowthRateCalculator 클래스
+├── feature_engineering.py    # FeatureEngineer 클래스
+├── growth_service.py          # GrowthRateService 클래스 (통합 서비스)
+└── router.py                  # FastAPI 엔드포인트
+```
+
+### 주요 클래스 및 메서드
+
+#### 1. `NewsAPI` (news.py)
+- `get_news_by_date_range()`: 날짜 범위별 뉴스 수집 (Pagination 처리)
+- `collect_weekly_articles()`: 주간 단위 기사 수집
+
+#### 2. `GrowthRateCalculator` (growth_rate.py)
+- `calculate_growth_rate()`: 기본 성장률 계산
+- `calculate_growth_metrics()`: 주간 기사 건수 비교 및 성장률 메트릭 계산
+- `analyze_historical_data()`: 시계열 분석 (이동 평균, 추세, 변동성, 모멘텀)
+
+#### 3. `FeatureEngineer` (feature_engineering.py)
+- `extract_basic_features()`: 기본 특징 추출
+- `extract_time_series_features()`: 시계열 특징 추출
+- `extract_derived_features()`: 파생 특징 추출
+- `create_feature_vector()`: 전체 특징 벡터 생성
+
+#### 4. `GrowthRateService` (growth_service.py)
+- `get_week_dates()`: 주차별 날짜 계산
+- `collect_weekly_data()`: 여러 주차 데이터 수집
+- `analyze_growth_rate()`: 통합 성장률 분석
+
+### 사용 예시
+
+#### Python 코드에서 사용
+
+```python
+from app.news.growth_service import GrowthRateService
+
+# 서비스 초기화
+service = GrowthRateService()
+
+# 키워드에 대한 성장률 분석
+result = service.analyze_growth_rate("bitcoin")
+
+print(f"성장률: {result['growth_metrics']['growth_rate_percentage']}%")
+print(f"방향: {result['growth_metrics']['direction']}")
+print(f"현재주 기사 건수: {result['growth_metrics']['current_count']}개")
+print(f"4주전 기사 건수: {result['growth_metrics']['baseline_count']}개")
+```
+
+#### API 엔드포인트 사용
+
+```bash
+# 성장률 조회
+GET /news/growth-rate/bitcoin
+
+# 예측 결과 조회
+GET /news/prediction/bitcoin
+```
 
 ---
 
 ## 📝 주요 고려사항
 
 ### 1. 데이터 품질
+- ✅ **전략 A 적용**: Pagination 처리로 데이터 수집 완전성 확보
 - NewsAPI의 무료 플랜 제한 고려 (하루 100 요청)
 - 캐싱 전략 필요 (Redis 활용)
 - 데이터 누락 시 처리 방안
