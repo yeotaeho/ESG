@@ -68,6 +68,15 @@ spring:
             - Path=/api/ml/**
           filters:
             - StripPrefix=1  # /api 제거 → /ml/** 전달
+
+        # Trend Service 라우팅
+        # 예: /api/news/** → /news/** (trendservice 컨테이너로 전달)
+        - id: trend-service
+          uri: lb://trend-service
+          predicates:
+            - Path=/api/news/**
+          filters:
+            - StripPrefix=1  # /api 제거 → /news/** 전달
       
       # 글로벌 CORS 설정
       # 주의: allowCredentials: true일 때는 allowedOrigins에 "*"를 사용할 수 없음
@@ -121,6 +130,11 @@ spring:
             ml-service:
               - uri: http://${ML_SERVICE_HOST:mlservice}:${ML_SERVICE_PORT:9003}
                 instance-id: ml-service-1
+
+            # Trend Service 인스턴스 정의
+            trend-service:
+              - uri: http://${TREND_SERVICE_HOST:trendservice}:${TREND_SERVICE_PORT:9004}
+                instance-id: trend-service-1
 
   data:
     redis:
