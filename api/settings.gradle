@@ -1,0 +1,5 @@
+rootProject.name = 'api'
+
+// 기존 멀티 모듈(:server:config, :server:discovery, :server:eureka) 구조에서
+// gateway(discovery)만 단일 모듈로 사용하도록 변경
+include 'discovery'
