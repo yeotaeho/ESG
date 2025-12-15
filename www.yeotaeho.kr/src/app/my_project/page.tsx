@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/useStore';
 
 // Mock Data (가상 데이터)
 const NAV_LINKS = ['자료실', '보도자료', '프레스센터', '뉴스룸소개'];
-const HEADER_LINKS = ['전체 기사', '보도자료', '사진/포토', '영상/비디오', '인포그래픽', '기획/연재'];
+const HEADER_LINKS = ['전체 기사', '경제', '정치', '사회', '문화', '국제/세계', 'IT/과학', '스포츠', '연예'];
 
 // API에서 가져올 뉴스 기사 타입
 interface NewsArticle {
@@ -84,7 +84,7 @@ const SectionHeader = ({ title, showPagination = false, hasButton = false }: { t
             </div>
         )}
         {hasButton && (
-             <button className="hidden sm:flex items-center text-sm font-medium text-white bg-black hover:bg-gray-700 transition px-6 py-3 rounded-full">
+            <button className="hidden sm:flex items-center text-sm font-medium text-white bg-black hover:bg-gray-700 transition px-6 py-3 rounded-full">
                 더 많은 이야기 보러가기
             </button>
         )}
@@ -121,13 +121,40 @@ export default function App() {
         return () => clearInterval(interval);
     }, []);
 
-    // 뉴스 데이터 가져오기
+    // 카테고리명을 API 쿼리로 매핑하는 함수
+    const getCategoryQuery = (category: string): string => {
+        const categoryMap: { [key: string]: string } = {
+            '전체 기사': 'latest',
+            '경제': '경제',
+            '정치': '정치',
+            '사회': '사회',
+            '문화': '문화',
+            '국제/세계': '세계',
+            'IT/과학': 'IT',
+            '스포츠': '스포츠',
+            '연예': '엔터테인먼트',
+        };
+        return categoryMap[category] || 'latest';
+    };
+
+    // 뉴스 데이터 가져오기 (카테고리별)
     useEffect(() => {
         const fetchNews = async () => {
             try {
                 setLoading(true);
-                const response = await fetch('http://localhost:8080/api/news/latest?display=20');
-                
+                const query = getCategoryQuery(activeTab);
+
+                // 전체 기사는 /latest, 나머지는 /search 사용
+                let apiUrl = '';
+                if (query === 'latest') {
+                    apiUrl = 'http://localhost:8080/api/news/latest?display=20';
+                } else {
+                    apiUrl = `http://localhost:8080/api/news/search?query=${encodeURIComponent(query)}&display=20`;
+                }
+
+                console.log('뉴스 API 호출:', apiUrl, '카테고리:', activeTab);
+                const response = await fetch(apiUrl);
+
                 if (!response.ok) {
                     console.error('HTTP 에러:', response.status, response.statusText);
                     const errorText = await response.text();
@@ -135,12 +162,13 @@ export default function App() {
                     setRecentArticles([]);
                     return;
                 }
-                
+
                 const data = await response.json();
                 console.log('뉴스 API 응답:', data);
-                
+
                 if (data.success && data.articles && Array.isArray(data.articles)) {
                     setRecentArticles(data.articles);
+                    console.log(`${activeTab} 카테고리 뉴스 ${data.articles.length}개 로드됨`);
                 } else {
                     console.error('뉴스 데이터 가져오기 실패:', data.message || '알 수 없는 오류');
                     setRecentArticles([]);
@@ -157,7 +185,7 @@ export default function App() {
         };
 
         fetchNews();
-    }, []);
+    }, [activeTab]); // activeTab이 변경될 때마다 새로운 데이터 가져오기
 
     // 로그아웃 핸들러
     const handleLogout = () => {
@@ -246,10 +274,10 @@ export default function App() {
                     </div>
                     {/* Related Video Thumbnail */}
                     <div className="hidden lg:block lg:w-1/4 bg-gray-800 rounded-lg overflow-hidden relative">
-                        <img 
-                            src="https://placehold.co/400x600/333333/FFFFFF?text=RELATED+VIDEO" 
-                            alt="Related Video" 
-                            className="w-full h-full object-cover opacity-50" 
+                        <img
+                            src="https://placehold.co/400x600/333333/FFFFFF?text=RELATED+VIDEO"
+                            alt="Related Video"
+                            className="w-full h-full object-cover opacity-50"
                             onError={(e) => {
                                 const target = e.target as HTMLImageElement;
                                 target.style.display = 'none';
@@ -274,23 +302,44 @@ export default function App() {
     const RecentArticles = () => (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-16">
             <h2 className="text-2xl font-bold mb-6 border-b pb-2">최신 기사</h2>
-            
+
             {/* Tabs */}
             <div className="flex overflow-x-auto space-x-4 pb-2 border-b border-gray-200 mb-8 whitespace-nowrap">
                 {HEADER_LINKS.map(link => (
                     <button
                         key={link}
                         onClick={() => setActiveTab(link)}
-                        className={`py-2 px-3 text-sm font-medium transition duration-300 ease-in-out ${
-                            activeTab === link
-                                ? 'text-black border-b-2 border-red-600'
-                                : 'text-gray-500 hover:text-red-600'
-                        }`}
+                        disabled={loading}
+                        className={`py-2 px-3 text-sm font-medium transition duration-300 ease-in-out relative ${activeTab === link
+                            ? 'text-black border-b-2 border-red-600'
+                            : 'text-gray-500 hover:text-red-600'
+                            } ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                     >
                         {link}
+                        {loading && activeTab === link && (
+                            <span className="absolute -bottom-1 left-1/2 transform -translate-x-1/2">
+                                <span className="flex space-x-1">
+                                    <span className="w-1 h-1 bg-red-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                                    <span className="w-1 h-1 bg-red-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                                    <span className="w-1 h-1 bg-red-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                                </span>
+                            </span>
+                        )}
                     </button>
                 ))}
             </div>
+
+            {/* Category Info */}
+            {!loading && recentArticles.length > 0 && (
+                <div className="flex justify-between items-center mb-4">
+                    <p className="text-sm text-gray-600">
+                        <span className="font-semibold text-red-600">{activeTab}</span> 카테고리 • 총 {recentArticles.length}개의 기사
+                    </p>
+                    <button className="text-xs text-gray-500 hover:text-red-600 transition">
+                        최신순 ▼
+                    </button>
+                </div>
+            )}
 
             {/* Articles Grid */}
             {loading ? (
@@ -309,10 +358,10 @@ export default function App() {
             ) : recentArticles.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                     {recentArticles.map((article, index) => (
-                        <a 
-                            key={`${article.title}-${index}`} 
-                            href={article.link || '#'} 
-                            target="_blank" 
+                        <a
+                            key={`${article.title}-${index}`}
+                            href={article.link || '#'}
+                            target="_blank"
                             rel="noopener noreferrer"
                             className="flex flex-col group rounded-lg overflow-hidden hover:shadow-lg transition"
                         >
@@ -331,8 +380,15 @@ export default function App() {
                     ))}
                 </div>
             ) : (
-                <div className="text-center py-12 text-gray-500">
-                    뉴스를 불러올 수 없습니다.
+                <div className="text-center py-12">
+                    <p className="text-gray-500 text-lg mb-2">
+                        {activeTab === '전체 기사'
+                            ? '뉴스를 불러올 수 없습니다.'
+                            : `'${activeTab}' 카테고리의 뉴스가 없습니다.`}
+                    </p>
+                    <p className="text-gray-400 text-sm">
+                        다른 카테고리를 선택하거나 잠시 후 다시 시도해주세요.
+                    </p>
                 </div>
             )}
         </section>
@@ -379,10 +435,10 @@ export default function App() {
                         {MORE_STORIES.map((article) => (
                             <div key={article.title} className="flex space-x-4 group">
                                 <div className="flex-shrink-0 w-24 h-24 bg-gray-100 rounded-lg overflow-hidden">
-                                     <img src={article.image} alt={article.title} className="w-full h-full object-cover" onError={(e) => {
-                                         const target = e.target as HTMLImageElement;
-                                         target.style.display = 'none';
-                                     }} />
+                                    <img src={article.image} alt={article.title} className="w-full h-full object-cover" onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        target.style.display = 'none';
+                                    }} />
                                 </div>
                                 <div className="flex flex-col justify-center">
                                     <span className="text-xs font-semibold text-gray-500">{article.type}</span>
@@ -402,7 +458,7 @@ export default function App() {
     );
 
     // Discovery/Highlight Section (확인해 보세요 및 미디어 하이라이트)
-  
+
 
     // Footer Component (하단 푸터)
     const Footer = () => (

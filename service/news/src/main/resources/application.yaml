@@ -25,6 +25,11 @@ spring:
 server:
   port: 8084
 
+# 로깅 설정
+logging:
+  level:
+    kr.yeotaeho.api.service.RssService: DEBUG
+
 # 네이버 API 설정
 naver:
   client-id: ${NAVER_CLIENT_ID}
