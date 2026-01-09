@@ -1,0 +1,12 @@
+rootProject.name = 'esg-develops'
+
+// Gateway (Infrastructure)
+include ':gateway'
+
+// Business Services Layer
+include ':services:common'
+include ':services:user'
+include ':services:oauth'
+include ':services:news'
+include ':services:esg'
+
