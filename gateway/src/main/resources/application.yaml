@@ -1,0 +1,194 @@
+spring:
+  application:
+    name: gateway-server
+  
+  cloud:
+    gateway:
+      # Eureka 자동 라우팅 비활성화
+      discovery:
+        locator:
+          enabled: false
+      
+      # 수동 라우팅 설정 (더 세밀한 제어)
+      routes:
+        # OAuth Service의 User 정보 조회 API (더 구체적인 경로가 우선)
+        # 예: /api/user/me → /oauth/user/me (oauth-service로 전달)
+        - id: oauth-user-me
+          uri: lb://oauth-service
+          predicates:
+            - Path=/api/user/me/**
+          filters:
+            - StripPrefix=1  # /api 제거 → /user/me 전달 (oauth-service의 context-path /oauth와 결합되어 /oauth/user/me가 됨)
+          order: 0  # 가장 높은 우선순위 (user-service보다 먼저 매칭)
+        
+        # User Service 통합 라우팅 (OAuth 포함: kakao, naver, google + users)
+        # 주의: /api/user/me는 oauth-service로 라우팅되므로 제외
+        # Gateway에서 StripPrefix=1로 /api 제거
+        # 예: /api/user/kakao/login → /user/kakao/login (서비스로 전달)
+        # 예: /api/user/naver/login → /user/naver/login (서비스로 전달)
+        # 예: /api/user/google/login → /user/google/login (서비스로 전달)
+        # 예: /api/user/users/123 → /user/users/123 (서비스로 전달)
+        # 주의: /api/user/me는 oauth-user-me 라우트가 먼저 매칭되므로 여기서는 제외됨
+        - id: user-service
+          uri: lb://user-service  # lb:// 프로토콜 유지 (SimpleDiscoveryClient 사용)
+          predicates:
+            - Path=/api/user/**
+          filters:
+            - StripPrefix=1  # 첫 번째 세그먼트(/api) 제거 → /user/** 전달
+          order: 1  # oauth-user-me보다 낮은 우선순위 (더 구체적인 경로가 먼저 매칭됨)
+        
+        # Common Service 라우팅
+        # 예: /api/common/data → /common/data (서비스로 전달)
+        - id: common-service
+          uri: lb://common-service
+          predicates:
+            - Path=/api/common/**
+          filters:
+            - StripPrefix=1  # 첫 번째 세그먼트(/api) 제거 → /common/** 전달
+
+        # OAuth Service 라우팅
+        # 예: /api/oauth/kakao/login → /oauth/kakao/login (서비스로 전달)
+        # 예: /api/oauth/naver/login → /oauth/naver/login (서비스로 전달)
+        # 예: /api/oauth/google/login → /oauth/google/login (서비스로 전달)
+        - id: oauth-service
+          uri: lb://oauth-service
+          predicates:
+            - Path=/api/oauth/**
+          filters:
+            - StripPrefix=1  # 첫 번째 세그먼트(/api) 제거 → /oauth/** 전달
+        
+        # 업로드된 파일 서빙 (OAuth Service)
+        # 예: /uploads/profiles/xxx.jpg → /oauth/uploads/profiles/xxx.jpg (서비스로 전달)
+        - id: oauth-uploads
+          uri: lb://oauth-service
+          predicates:
+            - Path=/uploads/**
+          filters:
+            - RewritePath=/uploads/(?<segment>.*), /oauth/uploads/$\\{segment}  # context-path 포함하여 전달
+
+        # News Service 라우팅
+        # 예: /api/news/** → /news/** (news-service 컨테이너로 전달)
+        - id: news-service
+          uri: lb://news-service
+          predicates:
+            - Path=/api/news/**
+          filters:
+            - StripPrefix=1  # /api 제거 → /news/** 전달
+
+        # Chatbot Service 라우팅
+        # 예: /api/chatbot/** → /chatbot/** (chatbotservice 컨테이너로 전달)
+        - id: chatbot-service
+          uri: lb://chatbot-service
+          predicates:
+            - Path=/api/chatbot/**
+          filters:
+            - StripPrefix=1  # /api 제거 → /chatbot/** 전달
+
+        # Clawler Service 라우팅
+        # 예: /api/clawler/** → /clawler/** (clawlerservice 컨테이너로 전달)
+        - id: clawler-service
+          uri: lb://clawler-service
+          predicates:
+            - Path=/api/clawler/**
+          filters:
+            - StripPrefix=1  # /api 제거 → /clawler/** 전달
+
+        # ML Service 라우팅
+        # 예: /api/ml/** → /ml/** (mlservice 컨테이너로 전달)
+        - id: ml-service
+          uri: lb://ml-service
+          predicates:
+            - Path=/api/ml/**
+          filters:
+            - StripPrefix=1  # /api 제거 → /ml/** 전달
+
+        # Trend Service 라우팅
+        # 예: /api/trend/** → /trend/** (trendservice 컨테이너로 전달)
+        - id: trend-service
+          uri: lb://trend-service
+          predicates:
+            - Path=/api/trend/**
+          filters:
+            - StripPrefix=1  # /api 제거 → /trend/** 전달
+      
+      # 글로벌 CORS 설정
+      # 주의: allowCredentials: true일 때는 allowedOrigins에 "*"를 사용할 수 없음
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - "http://localhost:3000"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - PATCH
+              - OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+    
+    # SimpleDiscoveryClient 설정
+    discovery:
+      client:
+        simple:
+          instances:
+            # User Service 인스턴스 정의
+            user-service:
+              - uri: http://${USER_SERVICE_HOST:user-service}:${USER_SERVICE_PORT:8083}
+                instance-id: user-service-1
+            
+            # Common Service 인스턴스 정의
+            common-service:
+              - uri: http://${COMMON_SERVICE_HOST:common-service}:${COMMON_SERVICE_PORT:8082}
+                instance-id: common-service-1
+
+            # OAuth Service 인스턴스 정의
+            oauth-service:
+              - uri: http://${OAUTH_SERVICE_HOST:oauth-service}:${OAUTH_SERVICE_PORT:8085}
+                instance-id: oauth-service-1
+
+            # News Service 인스턴스 정의
+            news-service:
+              - uri: http://${NEWS_SERVICE_HOST:news-service}:${NEWS_SERVICE_PORT:8084}
+                instance-id: news-service-1
+
+            # Chatbot Service 인스턴스 정의
+            chatbot-service:
+              - uri: http://${CHATBOT_SERVICE_HOST:chatbotservice}:${CHATBOT_SERVICE_PORT:9001}
+                instance-id: chatbot-service-1
+
+            # Clawler Service 인스턴스 정의
+            clawler-service:
+              - uri: http://${CLAWLER_SERVICE_HOST:clawlerservice}:${CLAWLER_SERVICE_PORT:9002}
+                instance-id: clawler-service-1
+
+            # ML Service 인스턴스 정의
+            ml-service:
+              - uri: http://${ML_SERVICE_HOST:mlservice}:${ML_SERVICE_PORT:9003}
+                instance-id: ml-service-1
+
+            # Trend Service 인스턴스 정의
+            trend-service:
+              - uri: http://${TREND_SERVICE_HOST:trendservice}:${TREND_SERVICE_PORT:9004}
+                instance-id: trend-service-1
+
+  data:
+    redis:
+      host: ${UPSTASH_REDIS_HOST:unified-gibbon-39731.upstash.io}
+      port: ${UPSTASH_REDIS_PORT:6379}
+      password: ${UPSTASH_REDIS_TOKEN:}
+      ssl: true
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+        shutdown-timeout: 100ms
+
+server:
+  port: 8080
+
+# Eureka 설정 제거됨 (SimpleDiscoveryClient 사용)
